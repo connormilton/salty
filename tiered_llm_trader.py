@@ -999,8 +999,9 @@ Available Funds: {context.get('account', {}).get('available')}
             # Get price data from multiple timeframes
             price_data = data.get('price_data', {})
             
-            # Extract M15 data from price_data if available
+            # M15 data - last 5 candles
             m15_data = price_data.get('m15', [])
+            m15_candles = m15_data[-5:] if len(m15_data) >= 5 else m15_data
             
             # H1 data - last 5 candles
             h1_data = price_data.get('h1', [])
@@ -1019,7 +1020,7 @@ Current Bid/Ask: {current_price.get('bid')}/{current_price.get('offer')}
 """
             
             # Add M15 candles
-            for i, candle in enumerate(reversed(m15_data)):  # newest first
+            for i, candle in enumerate(reversed(m15_candles)):  # newest first
                 dt = datetime.fromisoformat(candle.get('timestamp', ''))
                 time_str = dt.strftime("%H:%M")
                 market_data_detail += f"- {time_str}: O={candle.get('open'):.5f} H={candle.get('high'):.5f} L={candle.get('low'):.5f} C={candle.get('close'):.5f}\n"
@@ -1438,7 +1439,8 @@ def main():
         return
     
     # Initialize resource manager
-    resource_manager = LLMResourceManager(storage_path="data", daily_budget=20.0)
+    daily_budget = float(os.getenv("DAILY_LLM_BUDGET", 20.0))
+    resource_manager = LLMResourceManager(daily_budget=daily_budget)
     
     # Initialize memory system
     memory = TradingMemory()
@@ -1593,3 +1595,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+            
+            # M15 data - last 5 candles
+            price_data = {}  # Initialize price_data if not already defined
+            m15_data = price_data
