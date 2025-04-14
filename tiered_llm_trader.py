@@ -732,17 +732,17 @@ class ThreeTierLLMSystem:
             # Estimate tokens
             tokens_in = len(prompt) / 4  # Rough estimate
             
-            # Call LLM API with GPT-4
+            # Call LLM API with GPT-4 - FIXED: Removed the response_format parameter
             logger.info(f"Running analysis engine on {len(epics_to_analyze)} pairs (~{int(tokens_in)} tokens)")
             
             response = openai.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a forex analysis engine that performs detailed technical analysis on selected currency pairs."},
+                    {"role": "system", "content": "You are a forex analysis engine that performs detailed technical analysis on selected currency pairs. Respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                response_format={"type": "json_object"}
+                temperature=0.2
+                # Removed response_format parameter which caused the error
             )
             
             # Get token usage
@@ -753,9 +753,25 @@ class ThreeTierLLMSystem:
             # Update budget usage
             self.resource_manager.update_usage("analyzer", tokens_in, tokens_out)
             
-            # Parse response
+            # Parse response - handle potential JSON parsing issues
             response_content = response.choices[0].message.content
-            result = json.loads(response_content)
+            
+            # Try to extract JSON from the response if it's not already valid JSON
+            try:
+                result = json.loads(response_content)
+            except json.JSONDecodeError:
+                # Try to find JSON within the response (common LLM pattern is to wrap in ```json)
+                import re
+                json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_content)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse JSON from response: {response_content}")
+                        result = {"analysis_results": []}
+                else:
+                    logger.error(f"Failed to extract JSON from response: {response_content}")
+                    result = {"analysis_results": []}
             
             # Log the result
             with open("data/analyzer_results.jsonl", "a") as f:
@@ -807,17 +823,17 @@ class ThreeTierLLMSystem:
             # Estimate tokens
             tokens_in = len(prompt) / 4  # Rough estimate
             
-            # Call LLM API with GPT-4
+            # Call LLM API with GPT-4 - FIXED: Removed the response_format parameter
             logger.info(f"Running decision maker (~{int(tokens_in)} tokens)")
             
             response = openai.chat.completions.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": "You are a forex trading decision maker that determines precise trade entries, exits, and position management."},
+                    {"role": "system", "content": "You are a forex trading decision maker that determines precise trade entries, exits, and position management. Respond with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                response_format={"type": "json_object"}
+                temperature=0.2
+                # Removed response_format parameter which caused the error
             )
             
             # Get token usage
@@ -828,9 +844,25 @@ class ThreeTierLLMSystem:
             # Update budget usage
             self.resource_manager.update_usage("decision", tokens_in, tokens_out)
             
-            # Parse response
+            # Parse response - handle potential JSON parsing issues
             response_content = response.choices[0].message.content
-            result = json.loads(response_content)
+            
+            # Try to extract JSON from the response if it's not already valid JSON
+            try:
+                result = json.loads(response_content)
+            except json.JSONDecodeError:
+                # Try to find JSON within the response (common LLM pattern is to wrap in ```json)
+                import re
+                json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_content)
+                if json_match:
+                    try:
+                        result = json.loads(json_match.group(1))
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed to parse JSON from response: {response_content}")
+                        result = {"trade_actions": [], "position_actions": [], "analysis": {}}
+                else:
+                    logger.error(f"Failed to extract JSON from response: {response_content}")
+                    result = {"trade_actions": [], "position_actions": [], "analysis": {}}
             
             # Log the result
             with open("data/decision_results.jsonl", "a") as f:
@@ -914,7 +946,7 @@ Focus on finding clear technical patterns, strong trends, or high-probability se
 
 ## Response Format
 Respond in this JSON format:
-```
+```json
 {{
   "market_assessment": {{
     "overall_condition": "trending/ranging/volatile/uncertain",
@@ -1059,7 +1091,7 @@ Identify precise entry points, stop levels, and take profits with a focus on ris
 
 ## Response Format
 Respond in this JSON format:
-```
+```json
 {{
   "analysis_results": [
     {{
@@ -1188,7 +1220,7 @@ Determine which trades to execute, how to manage existing positions, and calcula
 
 ## Response Format
 Respond in this JSON format:
-```
+```json
 {{
   "trade_actions": [
     {{
@@ -1595,8 +1627,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-            
-            # M15 data - last 5 candles
-            price_data = {}  # Initialize price_data if not already defined
-            m15_data = price_data
